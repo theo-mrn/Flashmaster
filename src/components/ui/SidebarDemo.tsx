@@ -1,7 +1,7 @@
 "use client";
 import React, { useState } from "react";
 import Link from "next/link";
-import { WalletCards, ListCheck, Plus, Forward, AudioLines, ChartNoAxesColumnIncreasing } from 'lucide-react';
+import { WalletCards, ListCheck, Plus, NotebookPen,Forward, AudioLines, ChartNoAxesColumnIncreasing } from 'lucide-react';
 import Image from "next/image";
 import AudioPlayer from "./AudioPlayer"; // Import du composant AudioPlayer
 
@@ -28,6 +28,11 @@ export function SidebarDemo() {
       label: "Partagées",
       href: "/home/shared",
       icon: <Forward className="h-6 w-6" />,
+    },
+    {
+      label: "Mes Notes",
+      href: "/home/document",
+      icon: <NotebookPen className="h-6 w-6" />,
     },
     {
       label: "Mes résultats",

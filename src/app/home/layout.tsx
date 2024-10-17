@@ -1,5 +1,5 @@
 // home/layout.tsx
-import { SidebarDemo } from "@/components/ui/SidebarDemo";
+import{ SidebarDemo} from "@/components/ui/SidebarDemo";
 import { Timer } from '@/components/ui/Timer';
 import { AudioProvider } from "@/components/ui/audioContext"; // Import the AudioProvider
 
@@ -11,7 +11,7 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
         <SidebarDemo />
 
         {/* Timer with absolute positioning */}
-        <div className="absolute top-4 right-4 z-50">
+        <div className="absolute bottom-4 right-4 z-50">
           <Timer />
         </div>
 
