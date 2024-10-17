@@ -13,6 +13,8 @@ const tracks = [
   { id: 3, title: "Pluie douce", src: "/sounds/rain.mp3", image: "/images/rain.jpg" },
   { id: 4, title: "Océan calme", src: "/sounds/ocean.mp3", image: "/images/ocean.jpg" },
   { id: 5, title: "Forêt apaisante", src: "/sounds/forest.mp3", image: "/images/forest.jpg" },
+  { id: 6, title: "Son de balines", src: "/sounds/baleines.mp3", image: "/images/water.jpg" },
+
 ];
 
 type Track = {
