@@ -7,8 +7,8 @@ import { db } from '@/lib/firebase'; // Your Firebase setup
 import { collection, getDocs } from 'firebase/firestore';
 import { User } from 'firebase/auth'; // Import Firebase User type
 
-// Define the folder interface to type the folders fetched from Firebase
-interface Folder {
+// Define the notefolder interface to type the folders fetched from Firebase
+interface NoteFolder {
     id: string;
     name: string;
 }
@@ -19,28 +19,28 @@ interface SaveDialogProps {
 }
 
 const SaveDialog: React.FC<SaveDialogProps> = ({ user, onSave }) => {
-    const [folders, setFolders] = useState<Folder[]>([]); // Store folder list
-    const [selectedFolder, setSelectedFolder] = useState<string | null>(null); // Selected folder
+    const [noteFolders, setNoteFolders] = useState<NoteFolder[]>([]); // Store notefolder list
+    const [selectedFolder, setSelectedFolder] = useState<string | null>(null); // Selected notefolder
     const [docTitle, setDocTitle] = useState<string>(''); // Document title
     const [isOpen, setIsOpen] = useState<boolean>(false); // Control dialog open/close
 
-    // Fetch folders from Firebase when dialog opens
+    // Fetch notefolders from Firebase when dialog opens
     useEffect(() => {
         if (user && isOpen) {
-            const fetchFolders = async () => {
+            const fetchNoteFolders = async () => {
                 try {
-                    const folderCollection = collection(db, `users/${user.uid}/folders`);
+                    const folderCollection = collection(db, `users/${user.uid}/notefolders`);
                     const folderSnapshot = await getDocs(folderCollection);
-                    const folderList: Folder[] = folderSnapshot.docs.map(doc => ({
+                    const folderList: NoteFolder[] = folderSnapshot.docs.map(doc => ({
                         id: doc.id,
                         name: doc.data().name || 'Unnamed Folder',
                     }));
-                    setFolders(folderList);
+                    setNoteFolders(folderList);
                 } catch (error) {
                     console.error("Error fetching folders:", error);
                 }
             };
-            fetchFolders();
+            fetchNoteFolders();
         }
     }, [user, isOpen]);
 
@@ -75,7 +75,7 @@ const SaveDialog: React.FC<SaveDialogProps> = ({ user, onSave }) => {
                         onChange={(e) => setSelectedFolder(e.target.value || null)}
                     >
                         <option value="">Sélectionner un dossier</option>
-                        {folders.map((folder) => (
+                        {noteFolders.map((folder) => (
                             <option key={folder.id} value={folder.id}>
                                 {folder.name}
                             </option>

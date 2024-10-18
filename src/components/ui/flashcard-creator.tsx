@@ -8,10 +8,11 @@ import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Save, Image as ImageIcon } from "lucide-react";
 import { motion, AnimatePresence } from 'framer-motion';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'; // Dialog components
-import { db } from '@/lib/firebase'; // Removed unused 'auth' import
-import { collection, addDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase'; // Firebase connection
+import { collection, addDoc, getDocs } from 'firebase/firestore';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import Image from 'next/image'; // Importing Image component from next/image
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'; // Select component for folders
 
 interface CardSide {
   text: string;
@@ -23,22 +24,41 @@ interface FlashCard {
   back: CardSide;
 }
 
+interface Folder {
+  id: string;
+  name: string;
+}
+
 export default function FlashcardCreator() {
   const [cards, setCards] = useState<FlashCard[]>([{ front: { text: '' }, back: { text: '' } }]);
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [isShowingFront, setIsShowingFront] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pileName, setPileName] = useState('');
+  const [folders, setFolders] = useState<Folder[]>([]); // List of folders
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null); // Selected folder ID
   const [isDialogOpen, setIsDialogOpen] = useState(false); // For controlling the dialog state
   const [userId, setUserId] = useState('');
   const [message, setMessage] = useState(''); // Message after saving the pile
 
-  // Récupérer l'UID de l'utilisateur connecté
+  // Fetch the user's folders
   useEffect(() => {
+    const fetchFolders = async (uid: string) => {
+      const folderCollection = collection(db, `users/${uid}/folders`);
+      const folderSnapshot = await getDocs(folderCollection);
+      const userFolders = folderSnapshot.docs.map(doc => ({
+        id: doc.id,
+        name: doc.data().name || 'Unnamed Folder',
+      }));
+      setFolders(userFolders);
+    };
+
+    // Get the UID of the logged-in user
     const auth = getAuth();
     onAuthStateChanged(auth, (user) => {
       if (user) {
         setUserId(user.uid);
+        fetchFolders(user.uid); // Fetch the user's folders
       } else {
         console.error('Aucun utilisateur connecté');
       }
@@ -85,11 +105,12 @@ export default function FlashcardCreator() {
   };
 
   const handleSavePile = async () => {
-    if (pileName.trim() && cards.length > 0) {
+    if (pileName.trim() && selectedFolderId && cards.length > 0) {
       try {
         const userFlashcardsCollection = collection(db, `users/${userId}/flashcards`);
         await addDoc(userFlashcardsCollection, {
           name: pileName,
+          folderId: selectedFolderId,
           cards: cards,
         });
         console.log('Pile enregistrée avec succès');
@@ -100,6 +121,8 @@ export default function FlashcardCreator() {
       } catch (error) {
         console.error('Erreur lors de l\'enregistrement de la pile:', error);
       }
+    } else {
+      setMessage('Veuillez entrer un nom de pile et sélectionner un dossier.');
     }
   };
 
@@ -175,7 +198,7 @@ export default function FlashcardCreator() {
               </DialogTrigger>
               <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
-                  <DialogTitle className="text-2xl">Nommer la pile</DialogTitle>
+                  <DialogTitle className="text-2xl">Nommer la pile et choisir le dossier</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-6 mt-6">
                   <Input
@@ -184,6 +207,18 @@ export default function FlashcardCreator() {
                     placeholder="Nom de la pile"
                     className="text-lg py-6"
                   />
+                  <Select onValueChange={(value) => setSelectedFolderId(value)} value={selectedFolderId || ''}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choisissez un dossier" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {folders.map((folder) => (
+                        <SelectItem key={folder.id} value={folder.id}>
+                          {folder.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <Button onClick={handleSavePile} className="w-full text-lg py-6">Enregistrer</Button>
                 </div>
               </DialogContent>
