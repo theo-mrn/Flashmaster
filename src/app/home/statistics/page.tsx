@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 import { ArrowUp, Book, Trophy, Brain, Target, ChevronLeft, ChevronRight } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
-import { useState, useEffect } from "react"
+import { useState, useEffect,useCallback } from "react"
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { collection, getDocs, query, orderBy, doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -94,27 +94,21 @@ export default function StatistiquesApprentissageBento() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
   // Fonction pour récupérer les statistiques de l'utilisateur à partir de Firebase
-  const fetchStatistics = async (userUid: string) => {
+  const fetchStatistics = useCallback(async (userUid: string) => {
     try {
-      // Récupérer les données des statistiques depuis Firestore
       const statsCollection = collection(db, `users/${userUid}/statistics`);
       const statsSnapshot = await getDocs(query(statsCollection, orderBy("timestamp", "asc")));
       const statsArray = statsSnapshot.docs.map(doc => doc.data() as Stat);
-
-      // Récupérer le document utilisateur pour obtenir l'objectif hebdomadaire
+  
       const userDocRef = doc(db, `users/${userUid}`);
       const userDoc = await getDoc(userDocRef);
       const userData = userDoc.data();
-
-      // Si aucune statistique n'est trouvée, définir un objectif par défaut de 7 jours
       const objectifHebdo = userData?.objectifHebdo || 7;
-
-      // Calculer les statistiques d'aujourd'hui
+  
       const today = new Date().toLocaleDateString('fr-CA');
       const todayStats = statsArray.find(stat => stat.date === today);
       const lastSessionStats = statsArray[statsArray.length - 2] || {};
-
-      // Mettre à jour les statistiques dans l'état
+  
       setStatistics({
         pourcentageAujourdhui: todayStats?.pourcentage || 0,
         pourcentageDerniereSession: lastSessionStats?.pourcentage || 0,
@@ -128,29 +122,26 @@ export default function StatistiquesApprentissageBento() {
         objectifHebdo,
         bestPerformance: calculateBestPerformance(statsArray)
       });
-
-      // Générer les données pour la vue du calendrier
+  
       setMonthData(generateMonthData(currentMonth.getFullYear(), currentMonth.getMonth(), statsArray));
-
     } catch (error) {
       console.error("Error fetching statistics:", error);
     }
-  };
+  }, [currentMonth]); 
 
-  // Gestion de l'authentification et récupération des statistiques
   useEffect(() => {
     const auth = getAuth();
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setUserId(user.uid);
-        await fetchStatistics(user.uid);  // Récupérer les statistiques après avoir défini l'ID utilisateur
+        await fetchStatistics(user.uid);  // Use memoized fetchStatistics
       } else {
-        setUserId('');  // Si l'utilisateur se déconnecte, réinitialiser l'ID utilisateur
+        setUserId('');
       }
     });
-
+  
     return () => unsubscribe();
-  }, [currentMonth, userId]);
+  }, [currentMonth, userId, fetchStatistics]); // Add fetchStatistics as a dependency
 
   // Changer de mois
   const prevMonth = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));

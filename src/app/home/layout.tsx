@@ -11,7 +11,7 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
         <SidebarDemo />
 
         {/* Timer with absolute positioning */}
-        <div className="absolute bottom-4 right-4 z-50">
+        <div className="absolute bottom-4 left-4 z-50">
           <Timer />
         </div>
 

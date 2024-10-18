@@ -1,8 +1,10 @@
 "use client";
-import { useState, useEffect, useRef } from "react"
-import { CloudRain, CloudOff } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { CloudRain, CloudOff } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import Image from 'next/image';
 
+// List of images
 const images = [
   "/images/forest.jpg?height=300&width=300",
   "/images/foret2.jpg?height=300&width=300",
@@ -25,110 +27,142 @@ const images = [
   "/images/japon3.jpg?height=300&width=300",
   "/images/japon4.jpg?height=300&width=300",
   "/images/japon5.jpg?height=300&width=300",
+];
 
-]
-
-// Define which images should have rain by default
+// List of images that should have rain effect by default
 const rainImages = [
   "/images/rain.jpg?height=300&width=300",
   "/images/zen.jpg?height=300&width=300",
-    "/images/tahiti.jpg?height=300&width=300"
-]
+  "/images/tahiti.jpg?height=300&width=300",
+];
 
 interface RainDrop {
-  x: number
-  y: number
-  length: number
-  speed: number
+  x: number;
+  y: number;
+  length: number;
+  speed: number;
 }
 
+const throttle = <T extends unknown[]>(func: (...args: T) => void, limit: number) => {
+  let inThrottle: boolean;
+  return function (...args: T) {
+    if (!inThrottle) {
+      func(...args);
+      inThrottle = true;
+      setTimeout(() => (inThrottle = false), limit);
+    }
+  };
+};
+
+// Rain Effect Component
 const RainEffect = () => {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
+    const canvas = canvasRef.current;
+    if (!canvas) return;
 
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
 
-    let animationFrameId: number
+    let animationFrameId: number;
 
     const resizeCanvas = () => {
-      canvas.width = window.innerWidth
-      canvas.height = window.innerHeight
-    }
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
 
-    window.addEventListener('resize', resizeCanvas)
-    resizeCanvas()
+    // Throttling the resize event to avoid excessive reflows
+    const resizeCanvasThrottled = throttle(() => {
+      resizeCanvas();
+    }, 200);
 
-    const raindrops: RainDrop[] = []
+    window.addEventListener("resize", resizeCanvasThrottled);
+    resizeCanvas();
 
-    for (let i = 0; i < 100; i++) {
+    const raindrops: RainDrop[] = [];
+    for (let i = 0; i < 80; i++) {
       raindrops.push({
         x: Math.random() * canvas.width,
         y: Math.random() * canvas.height,
         length: Math.random() * 20 + 10,
-        speed: Math.random() * 10 + 5
-      })
+        speed: Math.random() * 5 + 2,
+      });
     }
 
     const draw = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
-      ctx.strokeStyle = 'rgba(174, 194, 224, 0.5)'
-      ctx.lineWidth = 1
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = "rgba(174, 194, 224, 0.5)";
+      ctx.lineWidth = 1;
 
-      raindrops.forEach(drop => {
-        ctx.beginPath()
-        ctx.moveTo(drop.x, drop.y)
-        ctx.lineTo(drop.x, drop.y + drop.length)
-        ctx.stroke()
+      raindrops.forEach((drop) => {
+        ctx.beginPath();
+        ctx.moveTo(drop.x, drop.y);
+        ctx.lineTo(drop.x, drop.y + drop.length);
+        ctx.stroke();
 
-        drop.y += drop.speed
-
+        drop.y += drop.speed;
         if (drop.y > canvas.height) {
-          drop.y = 0 - drop.length
-          drop.x = Math.random() * canvas.width
+          drop.y = 0 - drop.length;
+          drop.x = Math.random() * canvas.width;
         }
-      })
+      });
 
-      animationFrameId = requestAnimationFrame(draw)
-    }
+      animationFrameId = requestAnimationFrame(draw);
+    };
 
-    draw()
+    draw();
 
     return () => {
-      window.removeEventListener('resize', resizeCanvas)
-      cancelAnimationFrame(animationFrameId)
-    }
-  }, [])
+      window.removeEventListener("resize", resizeCanvasThrottled);
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, []);
 
-  return <canvas ref={canvasRef} className="fixed inset-0 pointer-events-none" />
-}
+  return <canvas ref={canvasRef} className="fixed inset-0 pointer-events-none" />;
+};
 
+// Main Component
 export default function Component() {
-  const [selectedImage, setSelectedImage] = useState<string | null>(null)
-  const [showRain, setShowRain] = useState(false) // Initially false
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [showRain, setShowRain] = useState(false);
 
-  const handleImageClick = (image: string) => {
-    if (selectedImage === image) {
-      setSelectedImage(null)
-    } else {
-      setSelectedImage(image)
-      // Check if the image should have rain by default
-      if (rainImages.includes(image)) {
-        setShowRain(true)
-      } else {
-        setShowRain(false)
-      }
-    }
-  }
+  // Handle Image Click to toggle rain effect
+  const handleImageClick = useCallback(
+    (image: string) => {
+      setSelectedImage(selectedImage === image ? null : image);
+      setShowRain(rainImages.includes(image));
+    },
+    [selectedImage]
+  );
+
+  // Mémorisation de la grille d'images pour éviter les re-rendus inutiles
+  const imageGrid = useMemo(() => {
+    return images.map((image, index) => (
+      <div
+        key={index}
+        className="aspect-square cursor-pointer"
+        onClick={() => handleImageClick(image)}
+      >
+        <Image
+          src={image}
+          alt={`Image ${index + 1}`}
+          className="w-full h-full object-cover rounded-lg"
+          layout="responsive"
+          width={300}  // Replace width with actual dimensions
+          height={300} // Replace height with actual dimensions
+          loading="lazy"  // Lazy load each image to improve performance
+        />
+      </div>
+    ));
+  }, [handleImageClick]);
 
   return (
     <div className="h-screen p-8 relative overflow-hidden">
+      {/* Fullscreen Image with Rain Effect */}
       <div
-        className={`absolute inset-0 transition-opacity duration-500 ease-in-out ${
-          selectedImage ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        className={`absolute inset-0 ${
+          selectedImage ? "opacity-100" : "opacity-0 pointer-events-none"
         }`}
         style={{
           backgroundImage: selectedImage ? `url(${selectedImage})` : "none",
@@ -137,35 +171,25 @@ export default function Component() {
         }}
       >
         {selectedImage && showRain && <RainEffect />}
-        <div 
+        <div
           className="absolute inset-0 cursor-pointer"
           onClick={() => handleImageClick(selectedImage!)}
         />
       </div>
 
+      {/* Image Grid */}
       <div className="h-full flex flex-col">
         <div
-          className={`grid grid-cols-2 md:grid-cols-3 gap-4 transition-opacity duration-500 ease-in-out overflow-y-auto ${
-            selectedImage ? 'opacity-0 pointer-events-none' : 'opacity-100'
+          className={`grid grid-cols-2 md:grid-cols-3 gap-4 overflow-y-auto ${
+            selectedImage ? "opacity-0 pointer-events-none" : "opacity-100"
           }`}
-          style={{ maxHeight: "calc(100vh - 64px)" }}  // Subtract button height for proper fit
+          style={{ maxHeight: "calc(100vh - 64px)" }} // Subtract button height
         >
-          {images.map((image, index) => (
-            <div
-              key={index}
-              className="aspect-square cursor-pointer hover:opacity-80 transition-opacity"
-              onClick={() => handleImageClick(image)}
-            >
-              <img
-                src={image}
-                alt={`Image ${index + 1}`}
-                className="w-full h-full object-cover rounded-lg"
-              />
-            </div>
-          ))}
+          {imageGrid} {/* Use the memoized grid */}
         </div>
       </div>
 
+      {/* Button to toggle rain effect */}
       {selectedImage && (
         <Button
           variant="outline"
@@ -177,5 +201,5 @@ export default function Component() {
         </Button>
       )}
     </div>
-  )
+  );
 }

@@ -65,7 +65,7 @@ export function SidebarDemo() {
         <div className="flex flex-col">
           {/* Logo */}
           <div className="mb-8">
-            <Link href="/">
+            <Link href="/home/">
               <div className="flex items-center space-x-2">
                 <Image
                   src="/logo.jpg"  // Remplace par le chemin de ton image
