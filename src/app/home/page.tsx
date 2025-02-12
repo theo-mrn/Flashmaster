@@ -148,10 +148,10 @@ export default function Component() {
           src={image}
           alt={`Image ${index + 1}`}
           className="w-full h-full object-cover rounded-lg"
-          layout="responsive"
-          width={300}  // Replace width with actual dimensions
-          height={300} // Replace height with actual dimensions
-          loading="lazy"  // Lazy load each image to improve performance
+          width={300}
+          height={300}
+          priority={index < 4}
+          loading={index >= 4 ? "lazy" : undefined}
         />
       </div>
     ));

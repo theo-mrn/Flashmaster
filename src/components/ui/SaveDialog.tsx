@@ -16,12 +16,12 @@ interface NoteFolder {
 interface SaveDialogProps {
     user: User | null; // Authenticated user, or null if not signed in
     onSave: (title: string, folderId: string | null) => Promise<void>; // Callback to save the document
+    currentTitle?: string;  // Ajouter cette prop
 }
 
-const SaveDialog: React.FC<SaveDialogProps> = ({ user, onSave }) => {
+const SaveDialog: React.FC<SaveDialogProps> = ({ user, onSave, currentTitle = 'Document sans titre' }) => {
     const [noteFolders, setNoteFolders] = useState<NoteFolder[]>([]); // Store notefolder list
     const [selectedFolder, setSelectedFolder] = useState<string | null>(null); // Selected notefolder
-    const [docTitle, setDocTitle] = useState<string>(''); // Document title
     const [isOpen, setIsOpen] = useState<boolean>(false); // Control dialog open/close
 
     // Fetch notefolders from Firebase when dialog opens
@@ -46,8 +46,8 @@ const SaveDialog: React.FC<SaveDialogProps> = ({ user, onSave }) => {
 
     // Handle save action
     const handleSave = async () => {
-        if (docTitle) {
-            await onSave(docTitle, selectedFolder); // Save the document
+        if (currentTitle) {
+            await onSave(currentTitle, selectedFolder); // Save the document
             setIsOpen(false); // Close the dialog
         }
     };
@@ -62,13 +62,6 @@ const SaveDialog: React.FC<SaveDialogProps> = ({ user, onSave }) => {
                     <DialogTitle>Sauvegarder le document</DialogTitle>
                 </DialogHeader>
                 <div className="flex flex-col space-y-4">
-                    <input
-                        className="border p-2"
-                        type="text"
-                        placeholder="Nom du document"
-                        value={docTitle}
-                        onChange={(e) => setDocTitle(e.target.value)}
-                    />
                     <select
                         className="border p-2"
                         value={selectedFolder || ''}
