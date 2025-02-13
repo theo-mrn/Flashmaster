@@ -335,7 +335,8 @@ const DocumentEditor: React.FC = () => {
             {/* Glassy container */}
             <div className="relative z-10 min-h-screen  backdrop-blur-ld">
                 <div className="container mx-auto p-4 max-w-5xl  rounded-lg bg-white/30">
-                    <div className="flex justify-between items-center mb-4 ">
+                    {/* Header avec titre et boutons */}
+                    <div className="flex justify-between items-center mb-4 sticky top-0 z-20 bg-white/30 backdrop-blur-sm p-4 rounded-lg">
                         <div className="flex items-center gap-4">
                             <Button 
                                 variant="outline" 
@@ -389,8 +390,8 @@ const DocumentEditor: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Barre d'outils avec fond glassy */}
-                    <div className="flex flex-wrap gap-2 mb-4 p-2 rounded-lg backdrop-blur-sm bg-white/40">
+                    {/* Barre d'outils fixe */}
+                    <div className="sticky top-20 z-20 flex flex-wrap gap-2 mb-4 p-2 rounded-lg backdrop-blur-sm bg-white/60 shadow-lg">
                         {/* Boutons de mise en forme */}
                         <Button size="sm" variant="outline" onClick={() => handleFormat('bold')}>
                             <Bold className="h-4 w-4" />
@@ -482,11 +483,11 @@ const DocumentEditor: React.FC = () => {
                         />
                     </div>
 
-                    {/* Editeur avec fond glassy */}
+                    {/* Editeur avec padding-top ajusté */}
                     <div
                         ref={editorRef}
-                        className="border p-4 flex-grow focus:outline-none rounded-lg backdrop-blur-sm bg-white/40"
-                        style={{ minHeight: 'calc(100vh - 200px)' }} // Ajuster la hauteur en fonction de l'en-tête
+                        className="border p-4 flex-grow focus:outline-none rounded-lg backdrop-blur-sm bg-white/40 mt-4"
+                        style={{ minHeight: 'calc(100vh - 240px)' }}
                         contentEditable
                         suppressContentEditableWarning
                         onInput={(e) => {
