@@ -1,31 +1,26 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, addDoc, deleteDoc, updateDoc, doc } from 'firebase/firestore';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogTrigger, DialogContent, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'; // Sélecteur de couleur
+import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { Folder, File, Plus, MoreVertical, ChevronLeft, Search, Grid, List as ListIcon, Loader2, Calendar } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { cn } from '@/lib/utils';
 
-// Liste des couleurs disponibles pour les dossiers
-const colorOptions = [
-  { name: 'Rouge', light: '#FF6B6B', dark: '#C0392B', textColor: '#FFFFFF' },
-  { name: 'Bleu', light: '#74B9FF', dark: '#2980B9', textColor: '#FFFFFF' },
-  { name: 'Vert', light: '#55EFC4', dark: '#27AE60', textColor: '#FFFFFF' },
-  { name: 'Violet', light: '#A29BFE', dark: '#8E44AD', textColor: '#FFFFFF' },
-  { name: 'Orange', light: '#FAB1A0', dark: '#E67E22', textColor: '#FFFFFF' },
-  { name: 'Rose', light: '#FAD6D6', dark: '#E57373', textColor: '#FFFFFF' }
-];
-
+// Types
 type Document = {
   id: string;
   title: string;
   content: string;
   folderId?: string | null;
+  lastModified?: string;
 };
 
 type NoteFolder = {
@@ -36,31 +31,60 @@ type NoteFolder = {
   textColor: string;
 };
 
+// Constantes
+const colorOptions = [
+  { name: 'Indigo', light: '#818CF8', dark: '#4F46E5', textColor: '#FFFFFF' },
+  { name: 'Emerald', light: '#34D399', dark: '#059669', textColor: '#FFFFFF' },
+  { name: 'Rose', light: '#FB7185', dark: '#E11D48', textColor: '#FFFFFF' },
+  { name: 'Amber', light: '#FCD34D', dark: '#D97706', textColor: '#FFFFFF' },
+  { name: 'Sky', light: '#38BDF8', dark: '#0284C7', textColor: '#FFFFFF' },
+  { name: 'Purple', light: '#A78BFA', dark: '#7C3AED', textColor: '#FFFFFF' }
+];
+
+// Ajouter les couleurs pour les documents
+const documentColors = [
+  { bg: "bg-gradient-to-br from-pink-600 via-pink-500 to-rose-600 hover:from-pink-700 hover:via-pink-600 hover:to-rose-700",
+    gradient: "from-white/10 via-white/5 to-black/20 group-hover:from-white/20 group-hover:via-white/10 group-hover:to-black/30",
+    icon: "bg-gradient-to-r from-pink-200 to-rose-200 text-pink-700 group-hover:from-pink-100 group-hover:to-rose-100",
+    border: "border-pink-400/20 hover:border-pink-300/30" },
+  { bg: "bg-gradient-to-br from-indigo-600 via-indigo-500 to-purple-600 hover:from-indigo-700 hover:via-indigo-600 hover:to-purple-700",
+    gradient: "from-white/10 via-white/5 to-black/20 group-hover:from-white/20 group-hover:via-white/10 group-hover:to-black/30",
+    icon: "bg-gradient-to-r from-indigo-200 to-purple-200 text-indigo-700 group-hover:from-indigo-100 group-hover:to-purple-100",
+    border: "border-indigo-400/20 hover:border-indigo-300/30" },
+  { bg: "bg-gradient-to-br from-violet-600 via-violet-500 to-purple-600 hover:from-violet-700 hover:via-violet-600 hover:to-purple-700",
+    gradient: "from-white/10 via-white/5 to-black/20 group-hover:from-white/20 group-hover:via-white/10 group-hover:to-black/30",
+    icon: "bg-gradient-to-r from-violet-200 to-purple-200 text-violet-700 group-hover:from-violet-100 group-hover:to-purple-100",
+    border: "border-violet-400/20 hover:border-violet-300/30" },
+  { bg: "bg-gradient-to-br from-blue-600 via-blue-500 to-indigo-600 hover:from-blue-700 hover:via-blue-600 hover:to-indigo-700",
+    gradient: "from-white/10 via-white/5 to-black/20 group-hover:from-white/20 group-hover:via-white/10 group-hover:to-black/30",
+    icon: "bg-gradient-to-r from-blue-200 to-indigo-200 text-blue-700 group-hover:from-blue-100 group-hover:to-indigo-100",
+    border: "border-blue-400/20 hover:border-blue-300/30" }
+];
+
 export default function DocumentsPage() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [folders, setFolders] = useState<NoteFolder[]>([]);
   const [userId, setUserId] = useState('');
   const [loading, setLoading] = useState(true);
-  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null); // null means "root"
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [newFolderName, setNewFolderName] = useState('');
-  const [selectedColor, setSelectedColor] = useState(colorOptions[0]); // Default color
-  const [editingFolder] = useState<NoteFolder | null>(null); // Folder being edited
-  const [isDialogOpen, setIsDialogOpen] = useState(false); // Control dialog state for folder creation/editing
+  const [selectedColor, setSelectedColor] = useState(colorOptions[0]);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
+  const [documentToMove, setDocumentToMove] = useState<Document | null>(null);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [searchQuery, setSearchQuery] = useState('');
   const router = useRouter();
-  const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false); // Control dialog state for moving document
-  const [documentToMove, setDocumentToMove] = useState<Document | null>(null); // Document being moved
 
   useEffect(() => {
     const auth = getAuth();
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setUserId(user.uid);
-        await loadDocuments(user.uid);
-        await loadFolders(user.uid);
+        await Promise.all([loadDocuments(user.uid), loadFolders(user.uid)]);
         setLoading(false);
       }
     });
-
     return () => unsubscribe();
   }, []);
 
@@ -92,15 +116,14 @@ export default function DocumentsPage() {
     }
   };
 
-  // Fonction pour créer une nouvelle note et rediriger vers la page d'édition
   const createNewDocument = async () => {
     try {
       const newDocRef = await addDoc(collection(db, `users/${userId}/documents`), {
         title: 'Nouveau Document',
         content: '',
-        folderId: selectedFolderId, // Si un dossier est sélectionné, on l'associe à la note
+        folderId: selectedFolderId,
+        lastModified: new Date().toISOString(),
       });
-      // Rediriger vers la page du document nouvellement créé
       router.push(`/home/document/${newDocRef.id}`);
     } catch (error) {
       console.error('Erreur lors de la création du document :', error);
@@ -118,9 +141,9 @@ export default function DocumentsPage() {
         textColor: selectedColor.textColor,
       });
       setNewFolderName('');
-      setSelectedColor(colorOptions[0]); // Reset to default color
-      await loadFolders(userId); // Recharger les dossiers sans recharger la page
-      setIsDialogOpen(false); // Fermer le dialog
+      setSelectedColor(colorOptions[0]);
+      await loadFolders(userId);
+      setIsDialogOpen(false);
     } catch (error) {
       console.error('Erreur lors de la création du dossier :', error);
     }
@@ -136,14 +159,13 @@ export default function DocumentsPage() {
     }
   };
 
-  // Fonction pour déplacer un document vers un autre dossier
   const moveDocumentToFolder = async () => {
-    if (documentToMove && selectedFolderId) {
+    if (documentToMove && selectedFolderId !== undefined) {
       try {
         const documentRef = doc(db, `users/${userId}/documents`, documentToMove.id);
         await updateDoc(documentRef, { folderId: selectedFolderId });
-        await loadDocuments(userId); // Recharger les documents
-        setIsMoveDialogOpen(false); // Fermer le dialog de déplacement
+        await loadDocuments(userId);
+        setIsMoveDialogOpen(false);
         setDocumentToMove(null);
       } catch (error) {
         console.error('Erreur lors du déplacement du document :', error);
@@ -151,268 +173,424 @@ export default function DocumentsPage() {
     }
   };
 
+  const filteredDocuments = documents.filter(doc => 
+    doc.title.toLowerCase().includes(searchQuery.toLowerCase()) &&
+    (selectedFolderId === null ? !doc.folderId : doc.folderId === selectedFolderId)
+  );
+
   if (loading) {
-    return <div>Chargement...</div>;
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
   return (
-    <div className="p-4 min-h-screen bg-background">
-      <h1 className="text-4xl font-bold mb-8 text-center">Tous les Documents</h1>
-
-      {/* Bouton pour créer une nouvelle note */}
-      <Button onClick={createNewDocument} className="mb-8">
-        Créer un nouveau document
-      </Button>
-
-      {/* Bouton pour créer un nouveau dossier */}
-      <Button onClick={() => setIsDialogOpen(true)} className="ml-3 mb-8">
-        Créer un nouveau dossier
-      </Button>
-
-      {selectedFolderId === null && (
-        <>
-          <h2 className="text-2xl font-bold mb-4">Dossiers</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            {folders.map((folder) => (
-              <Card
-                key={folder.id}
-                className="relative shadow-lg rounded-lg cursor-pointer"
-                style={{
-                  borderRadius: '20px',
-                  height: '150px',
-                  width: '200px',
-                  background: `linear-gradient(to bottom, ${folder.colorLight} 50%, ${folder.colorDark} 50%)`,
-                }}
-                onClick={() => setSelectedFolderId(folder.id)}
-              >
-                <CardContent className="relative p-6 h-full flex flex-col justify-between">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        className="absolute top-2 right-2 text-xl bg-transparent border-none"
-                        onClick={(e) => e.stopPropagation()} // Empêche la propagation du clic vers la carte
-                      >
-                        ⋮
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent>
-                      <DropdownMenuItem
-                        onClick={(e) => {
-                          e.stopPropagation(); // Empêcher la propagation du clic
-                          setNewFolderName(folder.name);
-                          setSelectedColor(colorOptions.find((c) => c.light === folder.colorLight) || colorOptions[0]);
-                          setIsDialogOpen(true);
-                        }}
-                      >
-                        Modifier
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={(e) => {
-                          e.stopPropagation(); // Empêcher la propagation du clic
-                          handleDeleteDocument(folder.id);
-                        }}
-                        className="text-red-500"
-                      >
-                        Supprimer
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                  <div className="text-left mt-auto">
-                    <h2 className="text-lg font-bold" style={{ color: folder.textColor }}>{folder.name}</h2>
-                    <p className="text-sm" style={{ color: folder.textColor }}>
-                      {documents.filter((n) => n.folderId === folder.id).length} documents
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+    <div className="min-h-screen bg-gradient-to-b from-background to-background/95 p-6">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div className="space-y-1">
+            <h1 className="text-4xl font-bold tracking-tight">Documents</h1>
+            <p className="text-muted-foreground">
+              Gérez et organisez vos documents et dossiers
+            </p>
           </div>
-
-          <h2 className="text-2xl font-bold mt-8 mb-4">Documents sans dossier</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            {documents
-              .filter((doc) => !doc.folderId) // Afficher uniquement les documents sans folderId
-              .map((doc) => (
-                <Card
-                  key={doc.id}
-                  className="relative shadow-lg rounded-[15px] p-6 flex flex-col justify-between"
-                  style={{
-                    height: '240px',
-                    width: '260px',
-                    backgroundColor: '#f9f9f9',
-                    borderRadius: '15px',
-                  }}
-                  onClick={() => router.push(`/home/document/${doc.id}`)} // Ouvrir le document
-                >
-                  <CardContent className="relative flex flex-col justify-center items-center">
-                    <h2 className="text-xl font-bold text-center mb-6">{doc.title}</h2>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button className="absolute top-2 right-2 text-xl bg-transparent border-none"
-                          onClick={(e) => e.stopPropagation()} // Empêcher la propagation du clic
-                        >
-                          ⋮
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent>
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation(); // Empêcher la propagation du clic
-                            setDocumentToMove(doc);
-                            setIsMoveDialogOpen(true); // Ouvrir le dialog pour déplacer le document
-                          }}
-                        >
-                          Déplacer
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="text-red-500"
-                          onClick={(e) => {
-                            e.stopPropagation(); // Empêcher la propagation du clic
-                            handleDeleteDocument(doc.id);
-                          }}
-                        >
-                          Supprimer
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </CardContent>
-                </Card>
-              ))}
-          </div>
-        </>
-      )}
-
-      {selectedFolderId && (
-        <div>
-          <Button className="mb-4 mt-6" onClick={() => setSelectedFolderId(null)}>
-            Retour
-          </Button>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 mt-8">
-            {documents
-              .filter((doc) => doc.folderId === selectedFolderId) // Afficher uniquement les documents qui ont le folderId correspondant
-              .map((doc) => (
-                <Card
-                  key={doc.id}
-                  className="relative shadow-lg rounded-[15px] p-6 flex flex-col justify-between"
-                  style={{
-                    height: '240px',
-                    width: '260px',
-                    backgroundColor: '#f9f9f9',
-                    borderRadius: '15px',
-                  }}
-                  onClick={() => router.push(`/home/document/${doc.id}`)} // Ouvrir le document
-                >
-                  <CardContent className="relative flex flex-col justify-center items-center">
-                    <h2 className="text-xl font-bold text-center mb-6">{doc.title}</h2>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button className="absolute top-2 right-2 text-xl bg-transparent border-none"
-                          onClick={(e) => e.stopPropagation()} // Empêcher la propagation du clic
-                        >
-                          ⋮
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent>
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation(); // Empêcher la propagation du clic
-                            setDocumentToMove(doc);
-                            setIsMoveDialogOpen(true); // Ouvrir le dialog pour déplacer le document
-                          }}
-                        >
-                          Déplacer
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="text-red-500"
-                          onClick={(e) => {
-                            e.stopPropagation(); // Empêcher la propagation du clic
-                            handleDeleteDocument(doc.id);
-                          }}
-                        >
-                          Supprimer
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </CardContent>
-                </Card>
-              ))}
+          <div className="flex items-center gap-2">
+            <Button onClick={() => setIsDialogOpen(true)} variant="outline" className="gap-2">
+              <Plus className="h-4 w-4" />
+              Nouveau dossier
+            </Button>
+            <Button onClick={createNewDocument} className="gap-2">
+              <File className="h-4 w-4" />
+              Nouveau document
+            </Button>
           </div>
         </div>
-      )}
 
-      {/* Dialog pour créer ou modifier un dossier */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogTrigger asChild></DialogTrigger>
-        <DialogContent>
-          <DialogTitle>{editingFolder ? 'Modifier le dossier' : 'Créer un dossier'}</DialogTitle>
-          <DialogDescription>
-            Choisissez un nom et une couleur pour votre dossier.
-          </DialogDescription>
-          <Input
-            value={newFolderName}
-            onChange={(e) => setNewFolderName(e.target.value)}
-            placeholder="Nom du dossier"
-            className="mb-4"
-          />
-          <div className="mb-4">
-            <label>Couleur :</label>
-            <Select onValueChange={(value) =>
-              setSelectedColor(colorOptions.find((c) => c.name === value) || colorOptions[0])
-            }>
+        {/* Barre d'outils */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-6">
+          <div className="relative flex-1 w-full sm:max-w-xs">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Rechercher..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 w-full"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setViewMode('grid')}
+              className={cn(viewMode === 'grid' && 'bg-muted')}
+            >
+              <Grid className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setViewMode('list')}
+              className={cn(viewMode === 'list' && 'bg-muted')}
+            >
+              <ListIcon className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Navigation des dossiers */}
+        {selectedFolderId && (
+          <Button
+            variant="ghost"
+            className="gap-2 mb-4"
+            onClick={() => setSelectedFolderId(null)}
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Retour aux dossiers
+          </Button>
+        )}
+
+        {/* Liste des dossiers */}
+        {!selectedFolderId && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <AnimatePresence>
+              {folders.map((folder) => (
+                <motion.div
+                  key={folder.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <Card
+                    className="group relative overflow-hidden cursor-pointer hover:shadow-lg transition-all duration-300"
+                    onClick={() => setSelectedFolderId(folder.id)}
+                  >
+                    <div
+                      className="absolute inset-0 opacity-20"
+                      style={{
+                        background: `linear-gradient(135deg, ${folder.colorLight}, ${folder.colorDark})`,
+                      }}
+                    />
+                    <div className="relative p-6 flex items-center gap-4">
+                      <div
+                        className="p-3 rounded-xl"
+                        style={{ backgroundColor: folder.colorLight }}
+                      >
+                        <Folder className="h-6 w-6 text-white" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold truncate">{folder.name}</h3>
+                        <p className="text-sm text-muted-foreground">
+                          {documents.filter((d) => d.folderId === folder.id).length} documents
+                        </p>
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={(e) => {
+                            e.stopPropagation();
+                            // Logique de modification
+                          }}>
+                            Modifier
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              // Logique de suppression
+                            }}
+                          >
+                            Supprimer
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </Card>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+        )}
+
+        {/* Liste des documents */}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={viewMode + (selectedFolderId || 'root')}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            {viewMode === 'grid' ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {filteredDocuments.map((doc, index) => {
+                  const colorScheme = documentColors[index % documentColors.length];
+                  return (
+                    <motion.div
+                      key={doc.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -20 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <Card
+                        className={cn(
+                          "group relative overflow-hidden cursor-pointer border-2 shadow-lg transition-all duration-500 hover:shadow-xl hover:-translate-y-1",
+                          colorScheme.bg,
+                          colorScheme.border
+                        )}
+                        onClick={() => router.push(`/home/document/${doc.id}`)}
+                      >
+                        {/* Effet de reflet métallique */}
+                        <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-black/20 pointer-events-none opacity-75" />
+                        <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-white/10 group-hover:opacity-100 transition-opacity duration-500" />
+                        <div className="absolute inset-0 bg-black/5 group-hover:bg-black/0 transition-colors duration-500" />
+                        
+                        {/* Gradient overlay */}
+                        <div className={cn(
+                          "absolute inset-0 bg-gradient-to-b transition-all duration-500",
+                          colorScheme.gradient
+                        )} />
+                        
+                        <div className="p-6 relative">
+                          {/* Icon header */}
+                          <div className="mb-4">
+                            <div className={cn(
+                              "p-3 rounded-xl w-fit transition-all duration-500 shadow-lg transform group-hover:scale-110",
+                              colorScheme.icon
+                            )}>
+                              <File className="h-6 w-6" />
+                            </div>
+                          </div>
+
+                          {/* Content */}
+                          <div className="space-y-3">
+                            <h3 className="font-semibold text-lg line-clamp-1 text-white group-hover:text-white transition-colors">
+                              {doc.title}
+                            </h3>
+                            {doc.lastModified && (
+                              <div className="flex items-center gap-2 text-sm text-white/90">
+                                <Calendar className="h-4 w-4" />
+                                {new Date(doc.lastModified).toLocaleDateString()}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Menu */}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-white hover:text-white hover:bg-white/20"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDocumentToMove(doc);
+                                  setIsMoveDialogOpen(true);
+                                }}
+                              >
+                                Déplacer
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="text-destructive"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteDocument(doc.id);
+                                }}
+                              >
+                                Supprimer
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </Card>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {filteredDocuments.map((doc, index) => {
+                  const colorScheme = documentColors[index % documentColors.length];
+                  return (
+                    <motion.div
+                      key={doc.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 20 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <Card
+                        className={cn(
+                          "group cursor-pointer border-2 transition-all duration-300 hover:-translate-x-1",
+                          colorScheme.bg,
+                          colorScheme.border
+                        )}
+                        onClick={() => router.push(`/home/document/${doc.id}`)}
+                      >
+                        {/* Effet de reflet métallique */}
+                        <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-black/20 pointer-events-none opacity-75" />
+                        <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-white/10 group-hover:opacity-100 transition-opacity duration-500" />
+                        
+                        {/* Gradient overlay */}
+                        <div className={cn(
+                          "absolute inset-0 bg-gradient-to-b transition-all duration-500",
+                          colorScheme.gradient
+                        )} />
+                        
+                        <div className="p-4 relative flex items-center justify-between">
+                          <div className="flex items-center gap-4">
+                            <div className={cn(
+                              "p-2 rounded-lg transition-all duration-500",
+                              colorScheme.icon
+                            )}>
+                              <File className="h-5 w-5" />
+                            </div>
+                            <div>
+                              <h3 className="font-medium text-white">{doc.title}</h3>
+                              {doc.lastModified && (
+                                <p className="text-sm text-white/80">
+                                  {new Date(doc.lastModified).toLocaleDateString()}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="opacity-0 group-hover:opacity-100 transition-opacity text-white hover:text-white hover:bg-white/20"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDocumentToMove(doc);
+                                  setIsMoveDialogOpen(true);
+                                }}
+                              >
+                                Déplacer
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="text-destructive"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteDocument(doc.id);
+                                }}
+                              >
+                                Supprimer
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </Card>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            )}
+          </motion.div>
+        </AnimatePresence>
+
+        {/* Dialogs */}
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogContent>
+            <DialogTitle>Créer un nouveau dossier</DialogTitle>
+            <DialogDescription>
+              Donnez un nom à votre nouveau dossier et choisissez sa couleur.
+            </DialogDescription>
+            <div className="space-y-4">
+              <Input
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                placeholder="Nom du dossier"
+              />
+              <Select
+                onValueChange={(value) =>
+                  setSelectedColor(
+                    colorOptions.find((c) => c.name === value) || colorOptions[0]
+                  )
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Choisissez une couleur" />
+                </SelectTrigger>
+                <SelectContent>
+                  {colorOptions.map((color) => (
+                    <SelectItem key={color.name} value={color.name}>
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-4 h-4 rounded-full"
+                          style={{ backgroundColor: color.light }}
+                        />
+                        <span>{color.name}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                Annuler
+              </Button>
+              <Button onClick={handleCreateFolder}>Créer</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={isMoveDialogOpen} onOpenChange={setIsMoveDialogOpen}>
+          <DialogContent>
+            <DialogTitle>Déplacer le document</DialogTitle>
+            <DialogDescription>
+              Choisissez un dossier de destination pour votre document.
+            </DialogDescription>
+            <Select onValueChange={setSelectedFolderId}>
               <SelectTrigger>
-                <SelectValue placeholder="Choisissez une couleur" />
+                <SelectValue placeholder="Sélectionnez un dossier" />
               </SelectTrigger>
               <SelectContent>
-                {colorOptions.map((color) => (
-                  <SelectItem key={color.name} value={color.name}>
-                    <span style={{ display: 'flex', alignItems: 'center' }}>
-                      <span
-                        style={{
-                          backgroundColor: color.light,
-                          borderRadius: '50%',
-                          width: '10px',
-                          height: '10px',
-                          display: 'inline-block',
-                          marginRight: '8px',
-                        }}
-                      ></span>
-                      {color.name}
-                    </span>
+                <SelectItem value="">Racine</SelectItem>
+                {folders.map((folder) => (
+                  <SelectItem key={folder.id} value={folder.id}>
+                    {folder.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Annuler</Button>
-            <Button onClick={handleCreateFolder}>{editingFolder ? 'Modifier' : 'Créer'}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Dialog pour déplacer un document */}
-      <Dialog open={isMoveDialogOpen} onOpenChange={setIsMoveDialogOpen}>
-        <DialogContent>
-          <DialogTitle>Déplacer le document</DialogTitle>
-          <DialogDescription>Choisissez un dossier pour déplacer le document.</DialogDescription>
-          <Select onValueChange={setSelectedFolderId}>
-            <SelectTrigger>
-              <SelectValue placeholder="Sélectionnez un dossier" />
-            </SelectTrigger>
-            <SelectContent>
-              {folders.map((folder) => (
-                <SelectItem key={folder.id} value={folder.id}>
-                  {folder.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsMoveDialogOpen(false)}>Annuler</Button>
-            <Button onClick={moveDocumentToFolder}>Déplacer</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsMoveDialogOpen(false)}>
+                Annuler
+              </Button>
+              <Button onClick={moveDocumentToFolder}>Déplacer</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
     </div>
   );
 }
